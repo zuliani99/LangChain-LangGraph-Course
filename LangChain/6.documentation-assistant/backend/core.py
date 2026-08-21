@@ -1,3 +1,18 @@
+# =============================================================================
+# Lesson 6 / backend - the RAG "brain" behind the Streamlit UI.
+#
+# run_llm(query) -> {"answer": str, "context": List[Document]}
+#
+# Instead of a fixed retrieve->prompt->answer chain (lesson 5), retrieval is
+# exposed to the model as a TOOL. The agent therefore decides whether to search,
+# what to search for, and may search several times before answering - and it can
+# skip retrieval entirely for a greeting.
+#
+# The block quoted out immediately below is the earlier, more heavily annotated
+# draft of this same module (k=5, explicit temperature). The live implementation
+# starts after it. Both are kept side by side for the lesson.
+# =============================================================================
+
 '''import os
 from typing import Any, Dict
 
@@ -116,23 +131,38 @@ from langchain_openai import OpenAIEmbeddings
 
 load_dotenv()
 
+# MUST match ingestion.py exactly: query vectors and stored vectors have to come
+# from the same model or similarity search is meaningless.
 # Initialize embeddings (same as ingestion.py)
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
+# Read-only handle on the index that ingestion.py populated.
 #Initialize vector store
 vectorstore = PineconeVectorStore(
     index_name="langchain-doc-index", embedding=embeddings
 )
+# Provider-agnostic factory: change the string to switch model or vendor.
 # Initialize chat model
 model = init_chat_model("gpt-4o-mini", model_provider="openai")
 
 
+# response_format="content_and_artifact" makes the tool return a 2-tuple:
+#   [0] content  -> the string the MODEL sees (must be text)
+#   [1] artifact -> an arbitrary Python object the model never sees, stored on
+#                   the ToolMessage for the application to use
+# That is how the raw Document objects survive the round-trip and reach the UI,
+# instead of being flattened into the prompt string.
 @tool(response_format="content_and_artifact")
 def retrieve_context(query: str):
     """Retrieve relevant documentation to help answer user queries about LangChain."""
+    # NOTE: k belongs in the retriever config, not in invoke(). Passing it here
+    # is ignored, so this actually returns the retriever default (k=4 anyway).
+    # The explicit form is: vectorstore.as_retriever(search_kwargs={"k": 4})
     # Retrieve top 4 most similar documents
     retrieved_docs = vectorstore.as_retriever().invoke(query, k=4)
     
+    # The source URL is embedded in the text the model reads, which is what makes
+    # the "always cite the sources" instruction in the system prompt satisfiable.
     # Serialize documents for the model
     serialized = "\n\n".join(
         (f"Source: {doc.metadata.get('source', 'Unknown')}\n\nContent: {doc.page_content}")
@@ -161,20 +191,28 @@ def run_llm(query: str) -> Dict[str, Any]:
         "You have access to a tool that retrieves relevant documentation. "
         "Use the tool to find relevant information before answering questions. "
         "Always cite the sources you use in your answers. "
+        # Explicit permission to fail: the single most effective anti-hallucination
+        # instruction in a RAG system prompt.
         "If you cannot find the answer in the retrieved documentation, say so."
     )
     
+    # A fresh agent per call. In production build it once at module level - this
+    # rebuilds the graph on every request.
     agent = create_agent(model, tools=[retrieve_context], system_prompt=system_prompt)
     
+    # No history is passed: this app is stateless, every question stands alone.
     # Build messages list
     messages = [{"role": "user", "content": query}]
     
     # Invoke the agent
     response = agent.invoke({"messages": messages})
     
+    # The loop has ended, so the last message is the AI's plain-text answer.
     # Extract the answer from the last AI message
     answer = response["messages"][-1].content
     
+    # Walk the transcript and collect every retrieved Document. There may be
+    # several ToolMessages if the agent searched more than once.
     # Extract context documents from ToolMessage artifacts
     context_docs = []
     for message in response["messages"]:

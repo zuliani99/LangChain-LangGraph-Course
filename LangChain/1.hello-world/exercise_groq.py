@@ -19,7 +19,9 @@ Model names should match exactly what's available on console.groq.com
 
 import os
 
-# Mock ChatGroq class to simulate the real langchain-groq behavior
+# Mock ChatGroq class to simulate the real langchain-groq behavior.
+# The real class lives in `langchain_groq` and has the exact same constructor
+# signature, so the exercise transfers 1:1 to production code.
 class ChatGroq:
     """Mock ChatGroq class for educational purposes."""
     
@@ -27,6 +29,8 @@ class ChatGroq:
         self.model = model
         self.temperature = temperature
         self.max_retries = max_retries
+        # The real client validates model ids server-side; here we hard-code the
+        # allow-list so a typo fails fast instead of costing an HTTP round-trip.
         self.valid_models = [
             "llama-4-8b-instant", 
             "llama-3.3-70b-versatile",
@@ -68,6 +72,8 @@ def implement_set_api_key(api_key):
         api_key (str): Your Groq API key
     """
     # TODO: Your implementation here
+    # LangChain integrations read credentials from the environment by convention:
+    # <PROVIDER>_API_KEY. Setting it here is equivalent to exporting it in .env.
     os.environ["GROQ_API_KEY"] = api_key
 
 
@@ -88,6 +94,7 @@ def implement_llama_4_model() -> ChatGroq:
     Set temperature=0 for consistent responses
     """
     # TODO: Your implementation here
+    # temperature=0 -> greedy decoding: same prompt gives the same answer.
     return ChatGroq(model="llama-4-8b-instant", temperature=0)
 
 
@@ -98,6 +105,7 @@ def implement_llama_3_3_model() -> ChatGroq:
     Set for slightly more creative responses
     """
     # TODO: Your implementation here
+    # temperature=0.3 -> a little sampling noise, noticeably more varied phrasing.
     return ChatGroq(model="llama-3.3-70b-versatile", temperature=0.3)
 
 
@@ -113,6 +121,8 @@ def implement_query_model(model: ChatGroq, prompt: str) -> str:
         str: The response content
     """
     # TODO: Your implementation here
+    # Chat models always take a LIST of role/content messages, never a bare string.
+    # The response is a message object, so the text lives under `.content`.
     response = model.invoke(messages=[{"role": "user", "content": prompt}])
     return response.content
 
@@ -127,6 +137,8 @@ def implement_compare_models(prompt: str) -> dict:
         dict: Dictionary with responses from both models
     """
     # TODO: Your implementation here
+    # A/B-ing two models behind one identical prompt is the cheapest way to pick
+    # the smallest model that is still good enough for the task.
     return {
         "llama-4-8b-instant": implement_query_model(implement_llama_4_model(), prompt),
         "llama-3.3-70b-versatile": implement_query_model(implement_llama_3_3_model(), prompt)

@@ -1,4 +1,22 @@
+"""
+Lesson 4 / step 2 - The same agent with NO LangChain at all.
+
+LangChain is gone: we talk to a local Ollama model through its raw chat API.
+What changes versus step 1:
+    1. plain functions instead of @tool  (no Tool objects)
+    2. hand-written JSON schemas         (no automatic schema generation)
+    3. dicts instead of Message classes  (no ToolMessage/tool_call_id pairing)
+The loop itself is byte-for-byte the same idea - proof that "an agent" is a
+while-loop around a model, not a framework feature.
+
+Prerequisites: `ollama serve` running and a tool-calling model pulled locally.
+Run from the repository root:
+    uv run python "LangChain/4.agents-under-the-hood/2_agent_loop_raw_function_calling.py"
+"""
+
 from dotenv import load_dotenv
+# @traceable still ships every step to LangSmith even though no LangChain object
+# is involved: tracing is independent from the framework.
 from langsmith import traceable
 
 load_dotenv()  # take environment variables from .env.
@@ -6,11 +24,15 @@ load_dotenv()  # take environment variables from .env.
 import ollama
 
 MAX_ITERATIONS = 10 # maximum number of iterations the agent will run before stopping
+# Must be a tag you have actually pulled (`ollama list`) AND one that supports
+# tool calling - a model without tool support will just answer in prose.
 MODEL = "gemma4" # local Ollama model to use for the agent (must support tool calling)
 
 # --- Tools (LangChain Tools @tool decoration) ---
 
 
+# Difference 1: no @tool. These are plain functions - @traceable only adds
+# observability, it does not make them callable by the model.
 @traceable(run_type="tool")
 def get_product_price(product: str) -> float:
     """Look up the price of a product in the catalog and return the price as a float."""
@@ -32,6 +54,8 @@ def apply_discount(price: float, discount: str) -> float:
         - BRONZE 5% for prices below $100
     """
     print(f"    >> Executing apply_discount with price: {price}, discount: {discount}")
+    # Each tier carries its percentage AND an eligibility predicate, so an
+    # invalid combination can be rejected instead of silently mis-pricing.
     discount_tiers = {
         "gold": (0.20, lambda p: p > 500),
         "silver": (0.10, lambda p: 100 <= p <= 500),
@@ -41,6 +65,8 @@ def apply_discount(price: float, discount: str) -> float:
     if tier not in discount_tiers:
         raise ValueError(f"Unknown discount tier: {discount}")
 
+    # Raising here is deliberate: run_agent() catches it and hands the message
+    # back to the model as the observation, which is how self-correction works.
     discount_percentage, is_eligible = discount_tiers[tier]
     if not is_eligible(price):
         raise ValueError(
@@ -116,6 +142,7 @@ def ollama_chat_traced(messages):
 
 @traceable(name="LangChain Agent Loop", description="An agent that can call tools to answer questions.")
 def run_agent(question: str):
+    # Built by hand: without Tool objects there is no .name attribute to read.
     tools_dict = {
         "get_product_price": get_product_price,
         "apply_discount": apply_discount,
@@ -125,6 +152,8 @@ def run_agent(question: str):
     print(f"Question: {question}")
     print("=" * 60)
 
+    # Difference 3a: raw dicts instead of SystemMessage/HumanMessage objects.
+    # This is the wire format LangChain serialises its Message classes into.
     messages = [
         {"role": "system",
             "content": (
@@ -152,6 +181,9 @@ def run_agent(question: str):
         response = ollama_chat_traced(messages)
         ai_message = response.message
 
+        # Ollama exposes tool calls as objects with .function.name/.arguments,
+        # not as the LangChain dicts of step 1 - every provider differs here,
+        # which is exactly the difference LangChain normalises away for you.
         tool_calls = ai_message.tool_calls
 
         # If no tool calls, this is the final answer
@@ -162,6 +194,8 @@ def run_agent(question: str):
         # Process only the first tool call - force one tool per iteration
         tool_call = tool_calls[0]
         tool_name = tool_call.function.name
+        # Already a dict here; the OpenAI API returns a JSON *string* that you
+        # would have to json.loads() yourself.
         tool_args = tool_call.function.arguments
 
         print(f"    [Tool Selected] {tool_name} with args: {tool_args}")
@@ -170,6 +204,8 @@ def run_agent(question: str):
         if not tool_to_use:
             raise ValueError(f"Tool {tool_name} not found in tools_dict.")
 
+        # Direct Python call - no schema validation happens, so a hallucinated
+        # argument name raises TypeError instead of a friendly validation error.
         try:
             observation = tool_to_use(**tool_args)
         except ValueError as e:

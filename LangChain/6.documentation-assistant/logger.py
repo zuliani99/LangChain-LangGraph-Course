@@ -1,3 +1,12 @@
+"""
+Lesson 6 / logger - zero-dependency coloured console output for the pipeline.
+
+ANSI escape codes only: no logging config, no third-party library. Every helper
+prints `<color><icon> message<reset>`; forgetting Colors.END would leak the
+colour onto everything printed afterwards.
+"""
+
+
 class Colors:
     PURPLE = '\033[95m'
     CYAN = '\033[96m'
@@ -8,7 +17,7 @@ class Colors:
     RED = '\033[91m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
-    END = '\033[0m'
+    END = '\033[0m'  # resets ALL attributes - every string must end with it
 
 
 def log_info(message: str, color: str = Colors.GREEN):
@@ -30,6 +39,7 @@ def log_error(message: str, color: str = Colors.RED):
 
 def log_header(message: str, color: str = Colors.BLUE):
     """Log header message with color."""
+    # Banner used to separate the pipeline phases (crawl / chunk / index).
     print(f"{color}" + "=" * 80 + f"{Colors.END}")
     print(f"{color}{Colors.BOLD}{message}{Colors.END}")
     print(f"{color}" + "=" * 80 + f"{Colors.END}")

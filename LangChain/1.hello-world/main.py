@@ -1,3 +1,14 @@
+"""
+Lesson 1 - Hello World: the smallest possible LangChain program.
+
+Demonstrates the three building blocks every LangChain app is made of:
+    PromptTemplate  ->  ChatModel  ->  (response)
+wired together with the LCEL pipe operator (`|`) into a single Runnable.
+
+Run from the repository root:
+    uv run python LangChain/1.hello-world/main.py
+"""
+
 import os
 
 from langchain_openai import ChatOpenAI
@@ -6,11 +17,17 @@ from langchain_ollama import ChatOllama
 
 from dotenv import load_dotenv
 
+# Reads the .env file at the project root and injects its keys into os.environ.
+# ChatOpenAI never receives the key explicitly: it picks OPENAI_API_KEY up from
+# the environment at construction time, so load_dotenv() must run BEFORE it.
 load_dotenv()  # take environment variables from .env.
 
 
 def main():
     print("Hello from langchain-course!")
+
+    # The "context" we want the model to work on. In a real app this string
+    # would come from a scraper, a database row or a RAG retriever.
     information = """
     Elon Reeve Musk[1] (AFI:[ˈiːlɒn ˈɹiːv ˈmʌsk]) (Pretoria, 28 giugno 1971) è un imprenditore e politico sudafricano con cittadinanza canadese naturalizzato statunitense.
 
@@ -23,6 +40,8 @@ def main():
     Dal 20 gennaio al 29 maggio 2025 è stato a capo del Dipartimento dell'Efficienza Governativa statunitense.[16][17][18]
     """
 
+    # The prompt template: plain text with {placeholders} in single braces.
+    # Everything the model is asked to do lives here, not in Python code.
     summary_template =  """
     given the information {information} about the person, I want you to create:
     1. A brief summary of their life and career
@@ -36,13 +55,21 @@ def main():
         template=summary_template,
     )
 
+    # temperature=0.5 -> mildly creative. Use 0.0 when you need deterministic,
+    # reproducible output (extraction, classification, tool calling).
     llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.5) # create an ChatOpenAI instance of the LLM with the model name and temperature
+    # Swap-in a local model: same interface, zero code changes downstream.
+    # This is the whole point of LangChain's ChatModel abstraction.
     #llm = ChatOllama(model="gemma3", temperature=0.5) # create an ChatOllama instance of the LLM with the model name and temperature
 
     chain = summary_prompt_template | llm # create a chain that first formats the prompt and then sends it to the LLM
     # chain is runnable, so we can invoke it with the input variable "information"
 
+    # invoke() runs the chain synchronously: dict -> PromptValue -> AIMessage.
+    # The same object also exposes .stream(), .batch(), .ainvoke() for free.
     response = chain.invoke(input={"information": information})
+    # AIMessage.content holds the text; the object also carries .response_metadata
+    # (token usage, finish reason, model name) which is useful for cost tracking.
     print(response.content) # print the response from the LLM
 
 if __name__ == "__main__":

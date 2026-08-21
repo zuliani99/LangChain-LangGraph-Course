@@ -1,3 +1,21 @@
+"""
+Lesson 4 / step 3 - The original ReAct agent: no tool-calling API at all.
+
+This is how agents worked before providers shipped function calling. The model
+is a plain text completer; "agency" is entirely emulated by:
+    1. a prompt that teaches the Thought/Action/Action Input/Observation format
+    2. a stop token that freezes generation before the model invents a result
+    3. regex parsing of the raw text to recover the tool name and arguments
+    4. a scratchpad string that replays the whole trace on every iteration
+Fragile by construction - one malformed line and parsing fails - which is why
+native tool calling (steps 1-2) replaced it.
+
+Reference: ReAct - Synergizing Reasoning and Acting in Language Models (arXiv:2210.03629)
+
+Run from the repository root:
+    uv run python "LangChain/4.agents-under-the-hood/3_raw_react_promt.py"
+"""
+
 # CHANGE 1: Add re + inspect — we'll parse tool calls from raw text instead of structured JSON.
 import re
 import inspect
@@ -33,6 +51,9 @@ def apply_discount(price: float, discount_tier: str) -> float:
     discount = discount_percentages.get(discount_tier, 0)
     return round(price * (1 - discount / 100), 2)
 
+# CHANGE 2: prices and tiers differ from steps 1-2 on purpose - if the model
+# reports 1299.99 it really called the tool; if it reports 999.99 it hallucinated
+# from its own memory of the previous scripts.
 tools = {
     "get_product_price": get_product_price,
     "apply_discount": apply_discount,
@@ -42,11 +63,18 @@ tools = {
 # We derive descriptions from the functions themselves using inspect.
 
 def get_tool_descriptions(tools_dict):
+    """Render each tool as one plain-text line: name(signature) - docstring.
+
+    This is the manual equivalent of the JSON schema in step 2 and of what
+    @tool generates in step 1 - only now the model reads it as prose.
+    """
     descriptions = []
     for tool_name, tool_function in tools_dict.items():
         # __wrapped__ bypasses decorator wrappers (e.g., @traceable adds *, config=None)
         original_function = getattr(tool_function, "__wrapped__", tool_function)
+        # The signature gives the model the argument names and types...
         signature = inspect.signature(original_function)
+        # ...and the docstring tells it when the tool should be used.
         docstring = inspect.getdoc(tool_function) or ""
         descriptions.append(f"{tool_name}{signature} - {docstring}")
     return "\n".join(descriptions)
@@ -54,6 +82,9 @@ def get_tool_descriptions(tools_dict):
 tool_descriptions = get_tool_descriptions(tools)
 tool_names = ", ".join(tools.keys())
 
+# The ReAct prompt. Everything below "Use the following format" is a worked
+# example of the grammar the parser expects - the model is imitating a template,
+# not obeying an API contract, so the format is a suggestion it may break.
 react_prompt = f"""
 STRICT RULES — you must follow these exactly:
 1. NEVER guess or assume any product price. You MUST call get_product_price first to get the real price.
@@ -80,6 +111,8 @@ Begin!
 
 Question: {{question}}
 Thought:"""
+# Double braces {{question}} survive the f-string so .format() can fill them later;
+# single braces {tool_descriptions} / {tool_names} are substituted right now.
 
 
 
@@ -106,6 +139,8 @@ def run_agent(question: str):
 
     # CHANGE 5: One prompt string replaces the system/user message split.
     prompt = react_prompt.format(question=question)
+    # The scratchpad IS the memory: a growing string of every Thought/Action/
+    # Observation so far, re-sent whole on each turn (step 1 used a message list).
     scratchpad = "" 
 
     for iteration in range(1, MAX_ITERATIONS + 1):
@@ -119,10 +154,13 @@ def run_agent(question: str):
             messages=[{"role": "user", "content": full_prompt}],
             options={"stop": ["\nObservation"], "temperature": 0},
         )
+        # Raw text, not a structured object - everything below is string surgery.
         output = response.message.content
         print(f"LLM Output:\n{output}")
 
         print(f"  [Parsing] Looking for Final Answer in LLM output...")
+        # Termination condition: the literal string "Final Answer:" in the output.
+        # In step 1 it was `if not tool_calls` - a fact, not a pattern match.
         final_answer_match = re.search(r"Final Answer:\s*(.+)", output)
         if final_answer_match:
             final_answer = final_answer_match.group(1).strip()
@@ -151,10 +189,15 @@ def run_agent(question: str):
         print(f"  [Tool Selected] {tool_name} with args: {tool_input_raw}")
 
         # Split comma-separated args; strip key= prefix if LLM outputs key=value format
+        # Positional parsing: "89.5, gold" -> ["89.5", "gold"]. Order matters and
+        # everything stays a string, so apply_discount() has to float() its input.
+        # A comma inside an argument value would break this outright.
         raw_args = [x.strip() for x in tool_input_raw.split(",")]
         args = [x.split("=", 1)[-1].strip().strip("'\"") for x in raw_args]
 
         print(f"  [Tool Executing] {tool_name}({args})...")
+        # Unknown tool -> report it as an observation so the model can retry with
+        # a valid name, instead of raising and killing the run.
         if tool_name not in tools:
             observation = f"Error: Tool '{tool_name}' not found. Available tools: {list(tools.keys())}"
         else:
