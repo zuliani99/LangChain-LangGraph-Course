@@ -1,4 +1,4 @@
-# LangChain- Develop AI Agents with LangChain & LangGraph 🦜🔗
+# LangChain / LangGraph Course -  Develop AI Agents with LangChain & LangGraph 🦜🔗
 
 **Learn LangChain and LangGraph by building real world AI Agents (Python, Latest Version V.1.0+)**
 
