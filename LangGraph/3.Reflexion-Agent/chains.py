@@ -14,7 +14,7 @@ from langchain_openai import ChatOpenAI
 
 from .schemas import AnswerQuestion, ReviseAnswer
 
-llm = ChatOpenAI(model_name="gpt-4-turbo")
+llm = ChatOpenAI(model="gpt-4-turbo")
 parser = JsonOutputToolsParser(return_id=True)
 parser_pydantic = PydanticToolsParser(tools=[AnswerQuestion]) 
 # takes the answer from the llm, create an AnswerQuestion object, that we can easily work with
@@ -55,7 +55,7 @@ revise_instructions = """Revise your previous answer using the new information.
     - You should use the previous critique to remove superfluous information from your answer and make SURE it is not more than 250 words.
 """
 
-recvisor = actor_prompt_template.partial(
+revisor = actor_prompt_template.partial(
     first_instruction=revise_instructions,
 ) | llm.bind_tools(tools=[ReviseAnswer], tool_choice="ReviseAnswer")
 
@@ -71,5 +71,5 @@ if __name__ == "__main__":
         | parser_pydantic
     )
 
-    res = chain.invoke(inputs={"messages": [human_message]})
+    res = chain.invoke(input={"messages": [human_message]})
     print(res)
