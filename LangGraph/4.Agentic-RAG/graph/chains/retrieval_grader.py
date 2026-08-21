@@ -2,7 +2,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from langchain_openai import ChatOpenAI
 
-llm = ChatOpenAI(temperature=0)
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
 
 class GradeDocuments(BaseModel):
@@ -28,3 +28,6 @@ grade_prompt = ChatPromptTemplate.from_messages(
 )
 
 retrieval_grader = grade_prompt | structured_llm_grader
+# The retrieval_grader is a pipeline that combines the grade_prompt with the structured_llm_grader. 
+# It takes a retrieved document and a user question as input, and outputs a binary s
+#   core indicating whether the document is relevant to the question.

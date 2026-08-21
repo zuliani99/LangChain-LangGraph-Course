@@ -221,3 +221,5 @@ __marimo__/
 
 *.lock
 .python-version
+*.bin
+*.sqlite3
