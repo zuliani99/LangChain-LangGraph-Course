@@ -10,12 +10,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from graph.chains.retrieval_grader import GradeDocuments, retrieval_grader
 from graph.chains.generation import generation_chain
+from graph.chains.hallucination_grader import hallucination_grader, GradeHallucinations
 from ingestion import retriever
 
 def test_retrival_grader_answer_yes() -> None:
     question = "agent memory"
     docs = retriever.invoke(question)
-    doc_text = docs[1].page_content
+    doc_text = docs[0].page_content
 
     res = cast(
         GradeDocuments,
@@ -28,7 +29,7 @@ def test_retrival_grader_answer_yes() -> None:
 def test_retrival_grader_answer_no() -> None:
     question = "agent memory"
     docs = retriever.invoke(question)
-    doc_text = docs[1].page_content
+    doc_text = docs[0].page_content
 
     res = cast(
         GradeDocuments,
@@ -41,6 +42,37 @@ def test_retrival_grader_answer_no() -> None:
 def test_generation_chain() -> None:
     question = "agent memory"
     docs = retriever.invoke(question)
-    doc_text = docs[1].page_content
+    doc_text = docs[0].page_content
     generation = generation_chain.invoke({"question": question, "context": doc_text})
     pprint(generation)
+
+
+
+def test_hallucination_grader_answer_yes() -> None:
+    question = "agent memory"
+    docs = retriever.invoke(question)
+
+    generation = generation_chain.invoke({"context": docs, "question": question})
+    res = cast(
+        GradeHallucinations,
+        hallucination_grader.invoke(
+            {"documents": docs, "generation": generation}
+        ),
+    )
+    assert res.binary_score
+
+
+def test_hallucination_grader_answer_no() -> None:
+    question = "agent memory"
+    docs = retriever.invoke(question)
+
+    res = cast(
+        GradeHallucinations,
+        hallucination_grader.invoke(
+            {
+                "documents": docs,
+                "generation": "In order to make pizza we need to first start with the dough",
+            }
+        ),
+    )
+    assert not res.binary_score
