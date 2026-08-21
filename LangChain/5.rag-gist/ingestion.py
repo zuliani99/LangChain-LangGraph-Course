@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
     # The embedding model is part of the index contract: main.py MUST query with
     # the same model, or the query vector lands in a different geometry space.
-    embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
+    embeddings = OpenAIEmbeddings()
 
     print("Creating vector store...")
     # from_documents = embed every chunk + upsert into an EXISTING Pinecone index.

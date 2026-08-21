@@ -31,7 +31,7 @@ print("Initializing components...")
 # Same embedding model as ingestion.py - non negotiable, see ingestion.py.
 embeddings = OpenAIEmbeddings()
 # temperature=0 for RAG: we want the answer grounded in the context, not invented.
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, openai_api_key=os.environ.get("OPENAI_API_KEY"))
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
 # Connects to the EXISTING index (ingestion.py filled it); nothing is written here.
 vectorStore = PineconeVectorStore(
