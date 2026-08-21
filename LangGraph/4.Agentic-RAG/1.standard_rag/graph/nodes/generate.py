@@ -1,5 +1,5 @@
 """
-Agentic RAG / Self-RAG - GENERATE node.
+Agentic RAG / Corrective RAG (CRAG) - GENERATE node.
 
 Plain RAG generation: stitch the surviving documents into one context string
 and answer from it. Every quality judgement happens elsewhere - before it in

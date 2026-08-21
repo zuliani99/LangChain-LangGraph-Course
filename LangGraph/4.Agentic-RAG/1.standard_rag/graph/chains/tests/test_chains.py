@@ -1,5 +1,5 @@
 """
-Agentic RAG / Self-RAG - chain-level tests.
+Agentic RAG / Corrective RAG (CRAG) - chain-level tests.
 
 These are integration tests, not unit tests: every one of them makes real LLM
 and vector-store calls and therefore costs money. The point is not coverage but
@@ -7,8 +7,10 @@ CALIBRATION - checking that each grader says "yes" to an obvious positive and
 "no" to an obvious negative, which is the only way to know a prompt-based judge
 actually discriminates.
 
-Adds calibration for the hallucination grader: a real generation must be
-graded grounded, and a pizza recipe must not.
+BROKEN AS COMMITTED: the import below pulls graph.chains.router, which only
+exists in variant 3 (3.adaptive_rag). Collecting this module raises
+ModuleNotFoundError, so no test in the file runs. Delete that import line -
+nothing in this file uses question_router or RouteQuery.
 
 Run from this variant's folder:
     cd LangGraph/4.Agentic-RAG/<variant> && uv run pytest . -s -v
@@ -29,7 +31,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from graph.chains.retrieval_grader import GradeDocuments, retrieval_grader
 from graph.chains.generation import generation_chain
-from graph.chains.hallucination_grader import hallucination_grader, GradeHallucinations
+# BUG: graph/chains/router.py does not exist in this variant - it is introduced
+# in 3.adaptive_rag. This line alone makes the whole module fail to import, and
+# neither name is used below. Remove it.
+from graph.chains.router import question_router, RouteQuery
 from ingestion import retriever
 
 # Positive control: "agent memory" IS covered by the ingested Lilian Weng posts,
@@ -74,41 +79,3 @@ def test_generation_chain() -> None:
     doc_text = docs[0].page_content
     generation = generation_chain.invoke({"question": question, "context": doc_text})
     pprint(generation)
-
-
-
-# Positive control for gate 1: an answer actually produced FROM these documents
-# must be graded as grounded.
-def test_hallucination_grader_answer_yes() -> None:
-    question = "agent memory"
-    docs = retriever.invoke(question)
-
-    # NOTE: `docs` is passed straight in as {context} - a list of Documents, not
-    # the joined string the GENERATE node builds. It works because the template
-    # stringifies it, but the test is not exercising the real context format.
-    generation = generation_chain.invoke({"context": docs, "question": question})
-    res = cast(
-        GradeHallucinations,
-        hallucination_grader.invoke(
-            {"documents": docs, "generation": generation}
-        ),
-    )
-    assert res.binary_score
-
-
-# Negative control for gate 1: an answer with no relation to the documents must
-# be caught. This is the test that proves the grader is not a rubber stamp.
-def test_hallucination_grader_answer_no() -> None:
-    question = "agent memory"
-    docs = retriever.invoke(question)
-
-    res = cast(
-        GradeHallucinations,
-        hallucination_grader.invoke(
-            {
-                "documents": docs,
-                "generation": "In order to make pizza we need to first start with the dough",
-            }
-        ),
-    )
-    assert not res.binary_score

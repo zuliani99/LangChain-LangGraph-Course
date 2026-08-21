@@ -1,5 +1,5 @@
 """
-Agentic RAG / Self-RAG - the generation chain.
+Agentic RAG / Corrective RAG (CRAG) - the generation chain.
 
 The only chain in the package that produces prose; everything else emits a
 structured verdict. Kept deliberately minimal so the surrounding graph, not the
@@ -10,9 +10,10 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
-# temperature=0: the answer must be a faithful function of the retrieved
-# context, not a creative rewrite of it.
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+# NOTE: no `model=` here, so langchain-openai falls back to its default
+# (gpt-3.5-turbo) - variants 2 and 3 pin gpt-4o-mini for the same chain. Worth
+# aligning before comparing answer quality across the three graphs.
+llm = ChatOpenAI(temperature=0)
 
 # Inline equivalent of hub.pull("rlm/rag-prompt") — the hub module was removed
 # from the langchain package, and pulling public prompts now requires a

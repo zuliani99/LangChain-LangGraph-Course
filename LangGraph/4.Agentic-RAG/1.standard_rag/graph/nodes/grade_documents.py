@@ -1,5 +1,5 @@
 """
-Agentic RAG / Adaptive RAG - GRADE_DOCUMENTS node.
+Agentic RAG / Corrective RAG (CRAG) - GRADE_DOCUMENTS node.
 
 The heart of Corrective RAG: every retrieved chunk is graded yes/no for
 relevance by an LLM, irrelevant ones are dropped, and a single "no" raises the

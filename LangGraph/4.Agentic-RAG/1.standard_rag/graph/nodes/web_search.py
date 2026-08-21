@@ -1,5 +1,5 @@
 """
-Agentic RAG / Self-RAG - WEB_SEARCH node.
+Agentic RAG / Corrective RAG (CRAG) - WEB_SEARCH node.
 
 The fallback when the local corpus is judged insufficient. Tavily results are
 collapsed into ONE synthetic Document and APPENDED to whatever survived

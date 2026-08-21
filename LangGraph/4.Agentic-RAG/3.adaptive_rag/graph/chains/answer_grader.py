@@ -1,5 +1,5 @@
 """
-Agentic RAG / Self-RAG - answer grader.
+Agentic RAG / Adaptive RAG - answer grader.
 
 Gate #2 on the edge leaving GENERATE, evaluated only after the hallucination
 grader has passed: "grounded, fine - but does it actually answer the question?"

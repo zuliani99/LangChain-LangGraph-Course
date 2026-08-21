@@ -1,5 +1,5 @@
 """
-Agentic RAG / Adaptive RAG - node name constants.
+Agentic RAG / Corrective RAG (CRAG) - node name constants.
 
 Node names are plain strings in LangGraph's API (add_node / add_edge / path
 maps). Centralising them here means a typo is a NameError at import time

@@ -1,5 +1,5 @@
 """
-Agentic RAG / Self-RAG - the shared graph state.
+Agentic RAG / Corrective RAG (CRAG) - the shared graph state.
 
 Unlike the message-list states of LangGraph lessons 1-3, this is a plain
 domain state: no reducers, so every node OVERWRITES the keys it returns. A node

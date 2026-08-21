@@ -1,5 +1,5 @@
 """
-Agentic RAG / Self-RAG - retrieval grader chain.
+Agentic RAG / Corrective RAG (CRAG) - retrieval grader chain.
 
 Answers one question per document: "is this chunk relevant to the user's
 question, yes or no?" Used by the GRADE_DOCUMENTS node to filter the retriever

@@ -1,5 +1,5 @@
 """
-Agentic RAG / Self-RAG - hallucination grader.
+Agentic RAG / Adaptive RAG - hallucination grader.
 
 Gate #1 on the edge leaving GENERATE: "is this answer actually supported by the
 documents it was given?" It compares the generation against the facts only - it

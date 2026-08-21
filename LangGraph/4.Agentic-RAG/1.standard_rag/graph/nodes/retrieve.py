@@ -1,5 +1,5 @@
 """
-Agentic RAG / Self-RAG - RETRIEVE node.
+Agentic RAG / Corrective RAG (CRAG) - RETRIEVE node.
 
 The only node that touches the vector store. Deliberately dumb: it embeds the
 question, pulls the nearest chunks and stops. Judging whether those chunks are

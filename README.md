@@ -2,7 +2,7 @@
 
 **Working repository for [Eden Marco's *Develop AI Agents with LangChain & LangGraph*](https://www.udemy.com/course/langchain/?couponCode=JULY-2026) course, rebuilt on LangChain v1 / LangGraph v1.**
 
-Nine self-contained lessons that go from a two-line prompt chain to a self-critiquing research agent that grounds its own revisions in live web search. Every lesson folder holds runnable code, **fully annotated line by line**, plus its own deep-dive `README.md`.
+Ten self-contained lessons that go from a two-line prompt chain to a RAG pipeline that grades its own retrieval, its own answer, and whether it should have retrieved at all. Every lesson folder holds runnable code, **fully annotated line by line**, plus its own deep-dive `README.md`.
 
 ![LangChain Logo](/static/LangChain_OSS%20Lockup_light.png)
 ![LangGraph Logo](/static/LangGraph_OSS%20Lockup_light.png)
@@ -31,7 +31,11 @@ LangChain-LangGraph-Course/
 ├── LangGraph/
 │   ├── 1.React-Agent-Function-Calling/   ReAct as an explicit graph
 │   ├── 2.Reflection-Agent/               generate ⇄ critique cycle
-│   └── 3.Reflexion-Agent/                critique + grounded research
+│   ├── 3.Reflexion-Agent/                critique + grounded research
+│   └── 4.Agentic-RAG/                    corrective → self → adaptive RAG
+│       ├── 1.standard_rag/
+│       ├── 2.self_rag/
+│       └── 3.adaptive_rag/
 ├── static/                          logos
 ├── pyproject.toml                   single uv environment for all lessons
 └── uv.lock
@@ -59,6 +63,7 @@ Every folder contains a `README.md` with: an architecture diagram, a section-by-
 | 1 | **[ReAct Agent as a Graph](LangGraph/1.React-Agent-Function-Calling/README.md)** | Lesson 2's agent, node by node | `StateGraph`, `MessagesState`, reducers, conditional edges, cycles | `OPENAI`, `TAVILY` |
 | 2 | **[Reflection Agent](LangGraph/2.Reflection-Agent/README.md)** | A writer and a critic in a loop | Custom state schema, `add_messages`, role re-labelling | `OPENAI` |
 | 3 | **[Reflexion Agent](LangGraph/3.Reflexion-Agent/README.md)** | Self-critique grounded in live research | Forced tool calls (`tool_choice`), schemas as constraints, citations | `OPENAI`, `TAVILY` |
+| 4 | **[Agentic RAG](LangGraph/4.Agentic-RAG/README.md)** | Three RAG graphs: corrective, self, adaptive | LLM-as-a-judge, `with_structured_output`, conditional entry points, self-correction cycles, local Chroma | `OPENAI`, `TAVILY` |
 
 ## 🧭 The arc
 
@@ -75,6 +80,7 @@ The order is not arbitrary — each lesson exists to break an assumption made by
 G1 ReAct as a Graph     the same loop, but every edge is yours to change
 G2 Reflection           a cycle that isn't model→tools→model
 G3 Reflexion            self-critique that is enforced, then researched
+G4 Agentic RAG          stop trusting the retriever, the answer, the premise
 ```
 
 Lesson 4 is the hinge. Read it before LangGraph: once you have written the agent loop three times by hand, `StateGraph` stops looking like a framework and starts looking like a description of something you already understand.
@@ -99,7 +105,7 @@ git clone git@github.com:zuliani99/LangChain-LangGraph-Course.git
 cd LangChain-LangGraph-Course && uv sync
 ```
 
-One environment covers all nine lessons.
+One environment covers all ten lessons.
 
 ### Configure `.env`
 
@@ -132,6 +138,7 @@ LANGSMITH_PROJECT=langchain-langgraph-course
 | [OpenAI](https://platform.openai.com/) | all | no (pay per token) | `gpt-4o-mini` throughout; **LangGraph** lesson 3 uses `gpt-4-turbo` |
 | [Tavily](https://tavily.com/) | 2, 3, 6, G1, G3 | yes | search API built for LLMs |
 | [Pinecone](https://www.pinecone.io/) | 5, 6 | yes | **create the index first**: dimension `1536`, metric `cosine` |
+| [Chroma](https://www.trychroma.com/) | G4 | yes, local | no account needed — the index is a folder on disk |
 | [Ollama](https://ollama.com/) | 4 (steps 2–3) | yes, local | needs a **tool-calling** model |
 | [LangSmith](https://smith.langchain.com/) | optional, all | yes | tracing and debugging |
 
@@ -155,8 +162,9 @@ Working directory matters for a few files:
 | G1 | `uv run python LangGraph/1.React-Agent-Function-Calling/main.py` | **repository root** |
 | G2 | `uv run python LangGraph/2.Reflection-Agent/main.py` | **repository root** |
 | G3 | `uv run python LangGraph/3.Reflexion-Agent/main.py` | **repository root** — *see known issues* |
+| G4 | `uv run python main.py` *(also `uv run pytest . -s -v`)* | **inside the chosen variant folder**, e.g. `LangGraph/4.Agentic-RAG/2.self_rag` |
 
-LangGraph 1 and 2 write `graph.png` to a path relative to the repository root, so they must be launched from there. Everywhere else, Python puts the script's own directory on `sys.path[0]` (and Streamlit does the same), so sibling and sub-package imports resolve regardless of where you are.
+LangGraph 1 and 2 write `graph.png` to a path relative to the repository root, so they must be launched from there. The three Agentic RAG variants go the other way: each resolves `./.chroma_db` against the working directory, so launch them from **inside** the variant folder or you will silently build a second, empty index somewhere else. Everywhere else, Python puts the script's own directory on `sys.path[0]` (and Streamlit does the same), so sibling and sub-package imports resolve regardless of where you are.
 
 > **Lessons 5 and 6 have a one-off ingestion step.** Run `ingestion.py` once to populate the vector index before running the query side. Lesson 6's crawl is long and costs real money — start with a smaller `max_depth` while experimenting.
 
@@ -171,6 +179,11 @@ Reproduced against the versions pinned in [`uv.lock`](uv.lock) (`langchain-core 
 | [`LangGraph/3.Reflexion-Agent/chains.py`](LangGraph/3.Reflexion-Agent/chains.py) | `KeyError: 'messages'` at import — `format_prompt()` renders a template, it does not bind tools | `first_responder_prompt_template \| llm.bind_tools(tools=[AnswerQuestion], tool_choice="AnswerQuestion")` |
 | [`pyproject.toml`](pyproject.toml) | `pinecore>=0.0.0` is an unrelated placeholder package (typo for `pinecone`) | harmless — the real client arrives transitively via `langchain-pinecone`; remove the line |
 | [`LangGraph/3.Reflexion-Agent/main.py`](LangGraph/3.Reflexion-Agent/main.py) | no `if __name__ == "__main__"` guard — importing the module fires a full, paid run | wrap the bottom of the file |
+| [`LangGraph/4.Agentic-RAG/1.standard_rag/…/test_chains.py`](LangGraph/4.Agentic-RAG/1.standard_rag/graph/chains/tests/test_chains.py) | imports `graph.chains.router`, which exists only in variant 3 → `ModuleNotFoundError`, no test in the file runs | delete the unused import |
+| [`LangGraph/4.Agentic-RAG/1.standard_rag/…/generation.py`](LangGraph/4.Agentic-RAG/1.standard_rag/graph/chains/generation.py) | `ChatOpenAI(temperature=0)` with no `model=` defaults to **gpt-3.5-turbo**, while variants 2–3 pin `gpt-4o-mini` | add `model="gpt-4o-mini"` |
+| all three `LangGraph/4.Agentic-RAG/*/graph/graph.py` | `draw_mermaid_png` uses an absolute, machine-specific path and calls mermaid.ink at import time | build the path from `__file__`, or use `draw_mermaid()` |
+
+Four further Agentic RAG notes (redundant edge, private Chroma API, state annotation, undeclared `pytest`) are listed in [that lesson's README](LangGraph/4.Agentic-RAG/README.md#9--known-issues).
 
 **LangGraph lesson 3 does not run as committed.** Apply the two `chains.py` fixes first.
 
@@ -184,7 +197,7 @@ Reproduced against the versions pinned in [`uv.lock`](uv.lock) (`langchain-core 
 | `langchain-ollama` | `>=1.1.0` | local models |
 | `langchain-tavily` | `>=0.2.18` | `TavilySearch`, `TavilyCrawl`, `TavilyMap`, `TavilyExtract` |
 | `langchain-pinecone` | `>=0.2.13` | managed vector store |
-| `langchain-chroma` | `>=1.1.0` | local vector store alternative |
+| `langchain-chroma` | `>=1.1.0` | local vector store — the whole of LangGraph lesson 4 |
 | `langchain-text-splitters` | `>=1.1.2` | `CharacterTextSplitter`, `RecursiveCharacterTextSplitter` |
 | `langchain-unstructured` | `>=1.0.1` | multi-format document loading |
 | `langsmith` | `>=0.11.1` | `@traceable`, trace inspection |
@@ -199,6 +212,7 @@ Reproduced against the versions pinned in [`uv.lock`](uv.lock) (`langchain-core 
 - Turn retrieval into an agent-controlled action, with citations that survive to the UI
 - Express non-linear control flow as a LangGraph state machine: cycles, routers, custom reducers
 - Make a model critique itself in a way it cannot game, and ground the revision in fresh evidence
+- Use an LLM as a structured judge — of retrieval, of groundedness, of usefulness — and wire those verdicts into control flow
 - Trace, debug and cost-account an agent run in LangSmith
 
 ## 📄 License & credits
