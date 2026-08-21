@@ -33,7 +33,7 @@ vectorstore = Chroma.from_documents(
     persist_directory="./.chroma_db"
 )
 
-retreiver = Chroma(
+retriever = Chroma(
     collection_name="langgraph_agentic_rag",
     persist_directory="./.chroma_db",
     embedding_function=OpenAIEmbeddings()
